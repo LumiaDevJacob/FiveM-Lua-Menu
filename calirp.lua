@@ -6,6 +6,7 @@
 
 print("^5[CaliRP] press '-' to open^7")
 print("^5[CaliRP] arrows left/right to set a keybind^7")
+print("^5[CaliRP] cuff is on H by default^7")
 
 local CaliRP = {}
 
@@ -33,7 +34,7 @@ local slime = {r = 140, g = 255, b = 90, a = 255}
 local coffin = {r = 14, g = 8, b = 20, a = 225}
 
 local Actions = {
-    {label = "CUFF", cb = "glradial:server:cuff", arg = "hard", msg = "cuffed", bind = 1},
+    {label = "CUFF", cb = "glradial:server:cuff", arg = "hard", msg = "cuffed", bind = 10},
     {label = "UNCUFF", cb = "glradial:server:uncuff", msg = "uncuffed", bind = 1},
     {label = "DRAG", cb = "glradial:server:drag", msg = "dragging", bind = 1},
     {label = "UNDRAG", cb = "glradial:server:stopDrag", msg = "dropped", bind = 1}
@@ -274,14 +275,23 @@ local function GetNearestPlayer()
         end
     end
 
-    return nearest
+    return nearest, distance
 end
 
+local lastFire = 0
+local cooldown = 1000
+
 local function Execute(action)
-    local target = GetNearestPlayer()
+    if GetGameTimer() - lastFire < cooldown then
+        return
+    end
+    lastFire = GetGameTimer()
+
+    local target, distance = GetNearestPlayer()
 
     if not target then
         notify("~r~nobody within 6m")
+        print("^1[CaliRP] no player within 6m^7")
         return
     end
 
@@ -297,6 +307,7 @@ local function Execute(action)
     end
 
     notify(action.msg .. " " .. sid)
+    print("^2[CaliRP] " .. action.msg .. " " .. sid .. " (" .. math.floor(distance) .. "m)^7")
 end
 
 CaliRP.CreateMenu("main", "CALIRP", "HALLOWEEN")
@@ -322,12 +333,10 @@ Citizen.CreateThread(function()
     while true do
         Citizen.Wait(0)
 
-        if not CaliRP.IsOpen("main") then
-            for _, action in ipairs(Actions) do
-                local bind = Binds[action.bind]
-                if bind.key and IsControlJustPressed(0, bind.key) then
-                    Execute(action)
-                end
+        for _, action in ipairs(Actions) do
+            local bind = Binds[action.bind]
+            if bind.key and IsControlJustPressed(0, bind.key) then
+                Execute(action)
             end
         end
     end
