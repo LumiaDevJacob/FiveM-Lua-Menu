@@ -1,33 +1,261 @@
---   ██████╗ █████╗ ██╗     ██╗██████╗ ██████╗
---  ██╔════╝██╔══██╗██║     ██║██╔══██╗██╔══██╗
---  ██║     ███████║██║     ██║██████╔╝██████╔╝
---  ██║     ██╔══██║██║     ██║██╔══██╗██╔═══╝
---  ╚██████╗██║  ██║███████╗██║██║  ██║██║
---   ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═╝╚═╝
+--  ▄▀▀▀▄  ▄▀▀▀▄ █     ▀█▀ ▄▀▀▀▄ ▄▀▀▀▄
+-- █      █▀▀▀█ █      █  █▄▄▄▀ █▄▄▄▀
+--  ▀▄▄▄▀ █   █ █▄▄▄▄ ▄█▄ █   █ █
 --
---  Open menu: '-' (Minus)   Move: Arrow Up / Arrow Down   Select: Enter   Close: Backspace
+--        C A L I R P   -   31/10
 
-print("^5[CaliRP] Loaded - press '-' (Minus) to open^7")
+print("^5[CaliRP] press '-' to open^7")
+print("^5[CaliRP] arrows left/right to set a keybind^7")
 
-local Menu = {
-    isOpen = false,
-    index = 1,
-    x = 0.845,
-    y = 0.50,
-    width = 0.145,
-    titleHeight = 0.055,
-    itemHeight = 0.034
+local CaliRP = {}
+
+local menus = {}
+local currentMenu = nil
+local optionCount = 0
+local currentKey = nil
+
+local keys = {up = 172, down = 173, left = 174, right = 175, select = 176, back = 177}
+
+local menuWidth = 0.20
+local titleHeight = 0.09
+local titleYOffset = 0.026
+local titleScale = 0.95
+local buttonHeight = 0.038
+local buttonFont = 4
+local buttonScale = 0.36
+local buttonTextXOffset = 0.006
+local buttonTextYOffset = 0.006
+
+local pumpkin = {r = 255, g = 110, b = 0, a = 255}
+local black = {r = 10, g = 5, b = 14, a = 255}
+local bone = {r = 235, g = 225, b = 240, a = 255}
+local slime = {r = 140, g = 255, b = 90, a = 255}
+local coffin = {r = 14, g = 8, b = 20, a = 225}
+
+local Actions = {
+    {label = "CUFF", event = "cuff", bind = 1},
+    {label = "UNCUFF", event = "uncuff", bind = 1},
+    {label = "DRAG", event = "drag", bind = 1},
+    {label = "UNDRAG", event = "undrag", bind = 1}
 }
 
-local Toggles = {
-    { label = "Cuff", action = "cuff", state = false },
-    { label = "Uncuff", action = "uncuff", state = false }
+local Binds = {
+    {name = "NONE"},
+    {name = "F1", key = 288},
+    {name = "F2", key = 289},
+    {name = "F3", key = 170},
+    {name = "F5", key = 166},
+    {name = "F6", key = 167},
+    {name = "F7", key = 168},
+    {name = "E", key = 38},
+    {name = "G", key = 47},
+    {name = "H", key = 74},
+    {name = "X", key = 73},
+    {name = "Z", key = 20},
+    {name = "K", key = 311},
+    {name = "U", key = 303},
+    {name = "M", key = 244}
 }
 
-local function Notify(text)
+local function notify(text)
     SetNotificationTextEntry("STRING")
-    AddTextComponentString(text)
+    AddTextComponentString("~o~CaliRP~s~ " .. text)
     DrawNotification(false, true)
+end
+
+local function drawText(text, x, y, font, colour, scale, centre, alignRight)
+    SetTextColour(colour.r, colour.g, colour.b, colour.a)
+    SetTextFont(font)
+    SetTextScale(scale, scale)
+
+    if centre then
+        SetTextCentre(true)
+    elseif alignRight then
+        SetTextWrap(menus[currentMenu].x, menus[currentMenu].x + menuWidth - buttonTextXOffset)
+        SetTextRightJustify(true)
+    end
+
+    SetTextEntry("STRING")
+    AddTextComponentString(text)
+    DrawText(x, y)
+end
+
+local function drawRect(x, y, width, height, colour)
+    DrawRect(x, y, width, height, colour.r, colour.g, colour.b, colour.a)
+end
+
+local function drawTitle()
+    local x = menus[currentMenu].x + menuWidth / 2
+    local y = menus[currentMenu].y + titleHeight / 2
+
+    drawRect(x, y, menuWidth, titleHeight, pumpkin)
+    drawText(menus[currentMenu].title, x, y - titleHeight / 2 + titleYOffset, 7, black, titleScale, true)
+end
+
+local function drawSubTitle()
+    local x = menus[currentMenu].x + menuWidth / 2
+    local y = menus[currentMenu].y + titleHeight + buttonHeight / 2
+
+    drawRect(x, y, menuWidth, buttonHeight, black)
+    drawText(
+        menus[currentMenu].subTitle,
+        menus[currentMenu].x + buttonTextXOffset,
+        y - buttonHeight / 2 + buttonTextYOffset,
+        buttonFont,
+        pumpkin,
+        buttonScale,
+        false
+    )
+    drawText(
+        menus[currentMenu].currentOption .. " / " .. #Actions,
+        menus[currentMenu].x + menuWidth,
+        y - buttonHeight / 2 + buttonTextYOffset,
+        buttonFont,
+        pumpkin,
+        buttonScale,
+        false,
+        true
+    )
+end
+
+local function drawButton(text, subText)
+    local x = menus[currentMenu].x + menuWidth / 2
+    local y = menus[currentMenu].y + titleHeight + buttonHeight + (buttonHeight * optionCount) - buttonHeight / 2
+    local selected = menus[currentMenu].currentOption == optionCount
+
+    drawRect(x, y, menuWidth, buttonHeight, selected and pumpkin or coffin)
+    drawText(
+        text,
+        menus[currentMenu].x + buttonTextXOffset,
+        y - buttonHeight / 2 + buttonTextYOffset,
+        buttonFont,
+        selected and black or bone,
+        buttonScale,
+        false
+    )
+
+    if subText then
+        drawText(
+            subText,
+            menus[currentMenu].x + menuWidth,
+            y - buttonHeight / 2 + buttonTextYOffset,
+            buttonFont,
+            selected and black or slime,
+            buttonScale,
+            false,
+            true
+        )
+    end
+end
+
+function CaliRP.CreateMenu(id, title, subTitle)
+    menus[id] = {
+        title = title,
+        subTitle = subTitle,
+        visible = false,
+        x = 0.775,
+        y = 0.18,
+        currentOption = 1
+    }
+end
+
+function CaliRP.IsOpen(id)
+    return menus[id] and menus[id].visible
+end
+
+function CaliRP.OpenMenu(id)
+    if menus[id] then
+        menus[id].visible = true
+        menus[id].currentOption = 1
+        currentMenu = id
+        PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+    end
+end
+
+function CaliRP.CloseMenu()
+    if menus[currentMenu] then
+        menus[currentMenu].visible = false
+        PlaySoundFrontend(-1, "QUIT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+        optionCount = 0
+        currentMenu = nil
+        currentKey = nil
+    end
+end
+
+function CaliRP.Button(text, subText)
+    optionCount = optionCount + 1
+    drawButton(text, subText)
+
+    if menus[currentMenu].currentOption == optionCount and currentKey == keys.select then
+        PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+        return true
+    end
+
+    return false
+end
+
+function CaliRP.BindButton(action)
+    local isCurrent = menus[currentMenu].currentOption == (optionCount + 1)
+    local label = Binds[action.bind].name
+
+    if isCurrent then
+        label = "< " .. label .. " >"
+    end
+
+    if CaliRP.Button(action.label, label) then
+        return true
+    elseif isCurrent then
+        if currentKey == keys.left then
+            action.bind = action.bind - 1
+            if action.bind < 1 then
+                action.bind = #Binds
+            end
+            PlaySoundFrontend(-1, "NAV_UP_DOWN", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+            notify(action.label .. " bound to ~o~" .. Binds[action.bind].name)
+        elseif currentKey == keys.right then
+            action.bind = action.bind + 1
+            if action.bind > #Binds then
+                action.bind = 1
+            end
+            PlaySoundFrontend(-1, "NAV_UP_DOWN", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+            notify(action.label .. " bound to ~o~" .. Binds[action.bind].name)
+        end
+    end
+
+    return false
+end
+
+function CaliRP.Display()
+    drawTitle()
+    drawSubTitle()
+
+    currentKey = nil
+
+    if IsControlJustPressed(0, keys.down) then
+        if menus[currentMenu].currentOption < optionCount then
+            menus[currentMenu].currentOption = menus[currentMenu].currentOption + 1
+        else
+            menus[currentMenu].currentOption = 1
+        end
+        PlaySoundFrontend(-1, "NAV_UP_DOWN", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+    elseif IsControlJustPressed(0, keys.up) then
+        if menus[currentMenu].currentOption > 1 then
+            menus[currentMenu].currentOption = menus[currentMenu].currentOption - 1
+        else
+            menus[currentMenu].currentOption = optionCount
+        end
+        PlaySoundFrontend(-1, "NAV_UP_DOWN", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
+    elseif IsControlJustPressed(0, keys.left) then
+        currentKey = keys.left
+    elseif IsControlJustPressed(0, keys.right) then
+        currentKey = keys.right
+    elseif IsControlJustPressed(0, keys.select) then
+        currentKey = keys.select
+    elseif IsControlJustPressed(0, keys.back) or IsControlJustPressed(0, 84) then
+        CaliRP.CloseMenu()
+    end
+
+    optionCount = 0
 end
 
 local function GetNearestPlayer()
@@ -49,127 +277,62 @@ local function GetNearestPlayer()
     return nearest
 end
 
-local function DrawTextEx(text, x, y, scale, r, g, b, centre, alignRight)
-    SetTextFont(4)
-    SetTextScale(scale, scale)
-    SetTextColour(r, g, b, 255)
-    SetTextDropshadow(0, 0, 0, 0, 255)
-    SetTextDropShadow()
-
-    if centre then
-        SetTextCentre(true)
-    elseif alignRight then
-        SetTextWrap(0.0, x)
-        SetTextRightJustify(true)
-    end
-
-    SetTextEntry("STRING")
-    AddTextComponentString(text)
-    DrawText(x, y)
-end
-
-local function DrawMenu()
-    local x, y = Menu.x, Menu.y
-    local w = Menu.width
-    local titleY = y - Menu.titleHeight / 2
-
-    DrawRect(x, titleY, w, Menu.titleHeight, 20, 110, 220, 255)
-    DrawTextEx("CaliRP", x, titleY - 0.019, 0.55, 255, 255, 255, true)
-
-    for i, option in ipairs(Toggles) do
-        local itemY = y + Menu.itemHeight * (i - 0.5)
-        local selected = (Menu.index == i)
-
-        DrawRect(x, itemY, w, Menu.itemHeight, selected and 245 or 10, selected and 245 or 10,
-            selected and 245 or 15, selected and 230 or 190)
-
-        local tr = selected and 15 or 240
-        local tg = selected and 15 or 240
-        local tb = selected and 15 or 240
-
-        DrawTextEx(option.label, x - w / 2 + 0.008, itemY - 0.011, 0.34, tr, tg, tb)
-        DrawTextEx(option.state and "ON" or "OFF", x + w / 2 - 0.008, itemY - 0.011, 0.34,
-            option.state and (selected and 20 or 80) or tr,
-            option.state and (selected and 140 or 220) or tg,
-            option.state and (selected and 60 or 120) or tb, false, true)
-    end
-
-    local footerY = y + Menu.itemHeight * #Toggles
-    DrawRect(x, footerY + 0.012, w, 0.024, 20, 110, 220, 255)
-    DrawTextEx(Menu.index .. " / " .. #Toggles, x, footerY + 0.004, 0.28, 255, 255, 255, true)
-end
-
-local function RunToggle(index)
-    local option = Toggles[index]
+local function Execute(event)
     local target = GetNearestPlayer()
 
     if not target then
-        Notify("~r~CaliRP~s~ no player within 6m")
+        notify("~r~nobody within 6m")
         return
     end
 
     local sid = GetPlayerServerId(target)
-    local randId = 'glradial:server:' .. option.action .. ':' .. math.random(10000, 99999)
+    local randId = 'glradial:server:' .. event .. ':' .. math.random(10000, 99999)
 
-    option.state = not option.state
-
-    if option.state then
-        for i, other in ipairs(Toggles) do
-            if i ~= index then
-                other.state = false
-            end
-        end
-
-        if option.action == "cuff" then
-            TriggerServerEvent('__ox_cb_glradial:server:cuff', 'GLRadial', randId, sid, 'hard')
-            Notify("~b~CaliRP~s~ cuffed " .. sid)
-        else
-            TriggerServerEvent('__ox_cb_glradial:server:uncuff', 'GLRadial', randId, sid)
-            Notify("~b~CaliRP~s~ uncuffed " .. sid)
-        end
+    if event == "cuff" then
+        TriggerServerEvent('__ox_cb_glradial:server:cuff', 'GLRadial', randId, sid, 'hard')
+        notify("cuffed " .. sid)
+    elseif event == "uncuff" then
+        TriggerServerEvent('__ox_cb_glradial:server:uncuff', 'GLRadial', randId, sid)
+        notify("uncuffed " .. sid)
+    elseif event == "drag" then
+        TriggerServerEvent('__ox_cb_glradial:server:drag', 'GLRadial', randId, sid)
+        notify("dragging " .. sid)
+    elseif event == "undrag" then
+        TriggerServerEvent('__ox_cb_glradial:server:stopDrag', 'GLRadial', randId, sid)
+        notify("dropped " .. sid)
     end
 end
 
-local function HandleInput()
-    if IsControlJustPressed(0, 172) then
-        Menu.index = Menu.index - 1
-        if Menu.index < 1 then
-            Menu.index = #Toggles
-        end
-        PlaySoundFrontend(-1, "NAV_UP_DOWN", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-    elseif IsControlJustPressed(0, 173) then
-        Menu.index = Menu.index + 1
-        if Menu.index > #Toggles then
-            Menu.index = 1
-        end
-        PlaySoundFrontend(-1, "NAV_UP_DOWN", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-    elseif IsControlJustPressed(0, 191) then
-        RunToggle(Menu.index)
-        PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-    elseif IsControlJustPressed(0, 177) then
-        Menu.isOpen = false
-        PlaySoundFrontend(-1, "BACK", "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
-    end
-end
+CaliRP.CreateMenu("main", "CALIRP", "HALLOWEEN")
 
 Citizen.CreateThread(function()
     while true do
-        if Menu.isOpen then
-            DrawMenu()
-            HandleInput()
-            Wait(0)
-        else
-            Wait(100)
+        Citizen.Wait(0)
+
+        if CaliRP.IsOpen("main") then
+            for _, action in ipairs(Actions) do
+                if CaliRP.BindButton(action) then
+                    Execute(action.event)
+                end
+            end
+            CaliRP.Display()
+        elseif IsControlJustPressed(0, 84) then
+            CaliRP.OpenMenu("main")
         end
     end
 end)
 
 Citizen.CreateThread(function()
     while true do
-        Wait(0)
-        if IsControlJustPressed(0, 84) then
-            Menu.isOpen = not Menu.isOpen
-            Menu.index = 1
+        Citizen.Wait(0)
+
+        if not CaliRP.IsOpen("main") then
+            for _, action in ipairs(Actions) do
+                local bind = Binds[action.bind]
+                if bind.key and IsControlJustPressed(0, bind.key) then
+                    Execute(action.event)
+                end
+            end
         end
     end
 end)
