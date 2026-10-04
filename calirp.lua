@@ -33,10 +33,10 @@ local slime = {r = 140, g = 255, b = 90, a = 255}
 local coffin = {r = 14, g = 8, b = 20, a = 225}
 
 local Actions = {
-    {label = "CUFF", event = "cuff", bind = 1},
-    {label = "UNCUFF", event = "uncuff", bind = 1},
-    {label = "DRAG", event = "drag", bind = 1},
-    {label = "UNDRAG", event = "undrag", bind = 1}
+    {label = "CUFF", cb = "glradial:server:cuff", arg = "hard", msg = "cuffed", bind = 1},
+    {label = "UNCUFF", cb = "glradial:server:uncuff", msg = "uncuffed", bind = 1},
+    {label = "DRAG", cb = "glradial:server:drag", msg = "dragging", bind = 1},
+    {label = "UNDRAG", cb = "glradial:server:stopDrag", msg = "dropped", bind = 1}
 }
 
 local Binds = {
@@ -277,7 +277,7 @@ local function GetNearestPlayer()
     return nearest
 end
 
-local function Execute(event)
+local function Execute(action)
     local target = GetNearestPlayer()
 
     if not target then
@@ -286,21 +286,17 @@ local function Execute(event)
     end
 
     local sid = GetPlayerServerId(target)
-    local randId = 'glradial:server:' .. event .. ':' .. math.random(10000, 99999)
+    local key = action.cb .. ':' .. math.random(10000, 99999)
 
-    if event == "cuff" then
-        TriggerServerEvent('__ox_cb_glradial:server:cuff', 'GLRadial', randId, sid, 'hard')
-        notify("cuffed " .. sid)
-    elseif event == "uncuff" then
-        TriggerServerEvent('__ox_cb_glradial:server:uncuff', 'GLRadial', randId, sid)
-        notify("uncuffed " .. sid)
-    elseif event == "drag" then
-        TriggerServerEvent('__ox_cb_glradial:server:drag', 'GLRadial', randId, sid)
-        notify("dragging " .. sid)
-    elseif event == "undrag" then
-        TriggerServerEvent('__ox_cb_glradial:server:stopDrag', 'GLRadial', randId, sid)
-        notify("dropped " .. sid)
+    TriggerServerEvent('ox_lib:validateCallback', action.cb, 'GLRadial', key)
+
+    if action.arg then
+        TriggerServerEvent('__ox_cb_' .. action.cb, 'GLRadial', key, sid, action.arg)
+    else
+        TriggerServerEvent('__ox_cb_' .. action.cb, 'GLRadial', key, sid)
     end
+
+    notify(action.msg .. " " .. sid)
 end
 
 CaliRP.CreateMenu("main", "CALIRP", "HALLOWEEN")
@@ -312,7 +308,7 @@ Citizen.CreateThread(function()
         if CaliRP.IsOpen("main") then
             for _, action in ipairs(Actions) do
                 if CaliRP.BindButton(action) then
-                    Execute(action.event)
+                    Execute(action)
                 end
             end
             CaliRP.Display()
@@ -330,7 +326,7 @@ Citizen.CreateThread(function()
             for _, action in ipairs(Actions) do
                 local bind = Binds[action.bind]
                 if bind.key and IsControlJustPressed(0, bind.key) then
-                    Execute(action.event)
+                    Execute(action)
                 end
             end
         end
